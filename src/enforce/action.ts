@@ -2,6 +2,7 @@
 // command, an HTTP request, an arbitrary tool payload), decide whether it would
 // exfiltrate secrets to somewhere it shouldn't — and block it before it runs.
 import { scan, type SecretHit, type ScanOptions } from "../detect/secrets.js";
+import { analyzeFlow } from "./dataflow.js";
 
 export type Decision = {
   action: "allow" | "block";
@@ -45,6 +46,33 @@ export function inspectShellCommand(command: string, policy: PolicyConfig = {}):
   const hits = scan(command, policy.scan);
   const dest = extractDestination(command);
   const allow = policy.allowedDestinations ?? [];
+
+  // Data-flow layer: catches encoded/indirect exfiltration where no secret literal
+  // appears in the text (cat .env | base64 | curl, $API_KEY refs, DNS exfil, staging).
+  const flow = analyzeFlow(command);
+  if (flow) {
+    // On a proven source→sink path, an *unknown* destination is not a free pass:
+    // secrets may only egress to a destination we can see AND that is allowlisted.
+    const flowDestOk = !!dest && destinationAllowed(dest, allow);
+    if (flow.sink && !flowDestOk) {
+      return {
+        action: "block",
+        reason: `Command reads secret source(s) [${flow.sources.join(", ")}] and sends them out via ${flow.sink}${
+          dest ? ` to "${dest}"` : ""
+        }.`,
+        hits,
+        destination: dest,
+      };
+    }
+    if (flow.staged) {
+      return {
+        action: "block",
+        reason: `Command stages secret source(s) [${flow.sources.join(", ")}] to ${flow.staged}, outside the project.`,
+        hits,
+        destination: dest,
+      };
+    }
+  }
 
   if (hits.length > 0 && dest && !destinationAllowed(dest, allow)) {
     return {
