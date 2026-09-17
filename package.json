@@ -1,0 +1,26 @@
+{
+  "name": "agentwall",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc",
+    "dev": "tsx"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@types/node": "^22.20.3",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1",
+    "zod": "^4.6.5"
+  },
+  "type": "module",
+  "bin": {
+    "agentwall": "dist/bin/cli.js"
+  }
+}

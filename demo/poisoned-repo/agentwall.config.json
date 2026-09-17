@@ -1,0 +1,4 @@
+{
+  "mode": "block",
+  "allowedDestinations": ["api.anthropic.com", "api.openai.com"]
+}
