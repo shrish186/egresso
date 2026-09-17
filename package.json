@@ -1,16 +1,25 @@
 {
   "name": "agentwall",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "0.1.0",
   "scripts": {
     "test": "vitest run",
     "build": "tsc",
-    "dev": "tsx"
+    "dev": "tsx",
+    "prepublishOnly": "npm run build && npm test"
   },
-  "keywords": [],
+  "keywords": [
+    "ai",
+    "agent",
+    "security",
+    "mcp",
+    "prompt-injection",
+    "llm",
+    "firewall",
+    "claude"
+  ],
   "author": "",
-  "license": "ISC",
-  "description": "",
+  "license": "MIT",
+  "description": "A firewall for AI agents — blocks secret exfiltration and destructive actions at the tool-call level",
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@types/node": "^22.20.3",
@@ -22,5 +31,15 @@
   "type": "module",
   "bin": {
     "agentwall": "dist/bin/cli.js"
-  }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "exports": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
 }

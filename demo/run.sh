@@ -32,3 +32,11 @@ echo
 echo "${BOLD}── A legitimate command is untouched ──${NC}"
 ( cd demo/poisoned-repo && $CLI check "curl https://api.anthropic.com/v1/messages -H 'x-api-key: sk-ant-api03-REALLYSECRETdontleakme12345'" ) || true
 echo
+
+echo "${BOLD}── Second failure mode: destructive commands ──${NC}"
+( cd demo/poisoned-repo && $CLI check "rm -rf / --no-preserve-root" ) || true
+echo
+( cd demo/poisoned-repo && $CLI check "git push --force origin main" ) || true
+echo
+echo "${GREEN}One policy engine: secret exfiltration + destructive actions + your own rules.${NC}"
+echo

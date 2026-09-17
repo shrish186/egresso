@@ -1,21 +1,30 @@
 #!/usr/bin/env node
-// agentwall CLI. Subcommands:
-//   hook          Run as a Claude Code PreToolUse hook (reads stdin JSON).
-//   scan <file>   Scan a file (or stdin) for secrets and print hits.
-//   check <cmd>   Inspect a shell command string and print the allow/block decision.
-//   init          Write a starter agentwall.config.json.
+// agentwall CLI.
+//   hook            Run as a Claude Code PreToolUse hook (reads stdin JSON).
+//   proxy -- <cmd>  Wrap an MCP server; inspect every tools/call.
+//   check "<cmd>"   Evaluate a shell command and print the verdict.
+//   scan <file>     Scan a file (or stdin) for secrets.
+//   init            Wire the hook into .claude/settings.json + starter config.
+//   doctor          Verify the setup.
+//   log [n]         Show recent audit decisions.
+//   report          Print an audit summary.
 import { runHook } from "../hook.js";
+import { runProxy } from "../proxy/mcp.js";
 import { scan } from "../detect/secrets.js";
 import { loadKnownSecrets } from "../detect/env.js";
-import { inspectShellCommand } from "../enforce/action.js";
 import { loadConfig } from "../config.js";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { evaluateCommand } from "../policy.js";
+import { runInit, runDoctor } from "../setup.js";
+import { showLog, showReport } from "../report.js";
+import { readFileSync } from "node:fs";
 
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const c of process.stdin) chunks.push(c as Buffer);
   return Buffer.concat(chunks).toString("utf8");
 }
+
+const ICON: Record<string, string> = { allow: "✓ ALLOW", warn: "⚠ WARN", ask: "🙋 ASK", block: "⛔ BLOCK" };
 
 async function main() {
   const [cmd, ...args] = process.argv.slice(2);
@@ -26,12 +35,15 @@ async function main() {
       await runHook();
       return;
 
+    case "proxy":
+      runProxy(args);
+      return;
+
     case "scan": {
       const text = args[0] ? readFileSync(args[0], "utf8") : await readStdin();
       const hits = scan(text, { knownValues: loadKnownSecrets(cwd) });
-      if (hits.length === 0) {
-        console.log("✓ No secrets detected.");
-      } else {
+      if (hits.length === 0) console.log("✓ No secrets detected.");
+      else {
         console.log(`⚠ ${hits.length} secret(s) detected:`);
         for (const h of hits) console.log(`  - ${h.kind}: ${h.redacted}`);
         process.exitCode = 1;
@@ -42,41 +54,41 @@ async function main() {
     case "check": {
       const command = args.join(" ");
       const cfg = loadConfig(cwd);
-      const decision = inspectShellCommand(command, {
-        ...cfg,
-        scan: { ...cfg.scan, knownValues: loadKnownSecrets(cwd) },
-      });
-      const icon = decision.action === "block" ? "⛔ BLOCK" : "✓ ALLOW";
-      console.log(`${icon}: ${decision.reason}`);
-      if (decision.destination) console.log(`  destination: ${decision.destination}`);
-      for (const h of decision.hits) console.log(`  secret: ${h.kind} (${h.redacted})`);
-      process.exitCode = decision.action === "block" ? 1 : 0;
+      const d = evaluateCommand(command, { ...cfg, scan: { ...cfg.scan, knownValues: loadKnownSecrets(cwd) } });
+      console.log(`${ICON[d.verdict]} (${d.category}): ${d.reason}`);
+      if (d.destination) console.log(`  destination: ${d.destination}`);
+      for (const f of d.findings) console.log(`  finding: ${f}`);
+      process.exitCode = d.verdict === "block" || d.verdict === "ask" ? 1 : 0;
       return;
     }
 
-    case "init": {
-      const path = "agentwall.config.json";
-      if (existsSync(path)) {
-        console.log(`${path} already exists.`);
-        return;
-      }
-      const starter = {
-        mode: "block",
-        allowedDestinations: ["api.openai.com", "api.anthropic.com"],
-      };
-      writeFileSync(path, JSON.stringify(starter, null, 2) + "\n");
-      console.log(`Wrote ${path}. Add the hook to .claude/settings.json to enforce.`);
+    case "init":
+      runInit(cwd);
       return;
-    }
+
+    case "doctor":
+      runDoctor(cwd);
+      return;
+
+    case "log":
+      showLog(cwd, args[0] ? parseInt(args[0], 10) : 20);
+      return;
+
+    case "report":
+      showReport(cwd);
+      return;
 
     default:
       console.log(
-        `agentwall — a firewall for AI agents (secret-exfiltration wedge)\n\n` +
-          `Usage:\n` +
-          `  agentwall hook          Run as a Claude Code PreToolUse hook\n` +
-          `  agentwall scan <file>   Scan a file or stdin for secrets\n` +
-          `  agentwall check "<cmd>" Decide whether a shell command would leak secrets\n` +
-          `  agentwall init          Write a starter config\n`
+        `agentwall — a firewall for AI agents\n\n` +
+          `  agentwall init            Wire the Claude Code hook + starter config\n` +
+          `  agentwall doctor          Verify enforcement is live\n` +
+          `  agentwall proxy -- <cmd>  Wrap an MCP server and inspect every tool call\n` +
+          `  agentwall check "<cmd>"   Evaluate a shell command\n` +
+          `  agentwall scan <file>     Scan a file/stdin for secrets\n` +
+          `  agentwall log [n]         Show recent audit decisions\n` +
+          `  agentwall report          Audit summary\n` +
+          `  agentwall hook            (used by the Claude Code hook)\n`
       );
       process.exitCode = cmd ? 1 : 0;
   }

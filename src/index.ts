@@ -10,3 +10,12 @@ export {
   type PolicyConfig,
 } from "./enforce/action.js";
 export { loadConfig, logDecision, type AgentwallConfig } from "./config.js";
+export { analyzeDestructive, type DestructiveFinding } from "./enforce/destructive.js";
+export {
+  evaluateCommand,
+  evaluateToolCall,
+  type PolicyDecision,
+  type EngineConfig,
+  type CustomRule,
+  type Verdict,
+} from "./policy.js";
