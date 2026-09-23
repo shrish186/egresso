@@ -51,7 +51,7 @@ export function normalize(command: string): string {
   // 3. Inline base64 payloads that get decoded and executed:
   //    eval $(echo 'Y2F0IC5lbnY=' | base64 -d)
   //    Decode the literal and append it so its contents are analyzed too.
-  for (const m of s.matchAll(/['"]([A-Za-z0-9+/=]{8,})['"]\s*\|\s*(?:openssl\s+)?base64\s+(?:-d|-D|--decode)/g)) {
+  for (const m of s.matchAll(/['"]?([A-Za-z0-9+/=]{8,})['"]?\s*\|\s*(?:openssl\s+)?base64\s+(?:-d|-D|--decode)/g)) {
     try {
       const decoded = Buffer.from(m[1], "base64").toString("utf8");
       if (/^[\x20-\x7e\s]+$/.test(decoded)) s += " ; " + decoded;
@@ -60,10 +60,38 @@ export function normalize(command: string): string {
     }
   }
 
-  // 4. Globs that resolve to secret files: cat .*nv -> mark as .env
+  // 4. ANSI-C quoting: $'\x2eenv' -> .env
+  s = s.replace(/\$'((?:[^'\\]|\\.)*)'/g, (_, body: string) =>
+    body
+      .replace(/\\x([0-9a-fA-F]{2})/g, (_m, h) => String.fromCharCode(parseInt(h, 16)))
+      .replace(/\\0?([0-7]{1,3})/g, (_m, o) => String.fromCharCode(parseInt(o, 8)))
+  );
+
+  // 5. printf-constructed filenames: cat $(printf '.env')
+  s = s.replace(/\$\(\s*printf\s+['"]([^'"]*)['"]\s*\)/g, "$1");
+
+  // 6. Simple variable assignments, so `x=e; cat ".${x}nv"` resolves. One pass
+  //    only — this is evasion-undoing, not a shell interpreter.
+  const vars = new Map<string, string>();
+  for (const m of s.matchAll(/(?:^|[;&|(]\s*)([A-Za-z_]\w*)=(?:"([^"]*)"|'([^']*)'|([^\s;&|]+))/g)) {
+    vars.set(m[1], m[2] ?? m[3] ?? m[4] ?? "");
+  }
+  if (vars.size) {
+    s = s.replace(/\$\{?([A-Za-z_]\w*)\}?/g, (whole, name) => vars.get(name) ?? whole);
+  }
+
+  // 7. Globs that resolve to secret files: cat .*nv -> mark as .env
   s = s.replace(/(^|\s)([^\s|;&<>]*[*?][^\s|;&<>]*)/g, (whole, pre, tok) =>
     globMatchesSecret(tok) ? `${pre}${tok} .env` : whole
   );
+
+  // 8. Shadow copies with quoting and escaping removed, appended rather than
+  //    substituted so both the original and the de-quoted form are searchable.
+  //    Catches `"."env` and `.e\nv`, which are the same file to the shell.
+  const dequoted = s.replace(/['"]/g, "");
+  const unescaped = s.replace(/\\(.)/g, "$1");
+  if (dequoted !== s) s += " ; " + dequoted;
+  if (unescaped !== s) s += " ; " + unescaped;
 
   return s;
 }
@@ -75,13 +103,32 @@ export function normalize(command: string): string {
 // Files whose contents are secrets. The leading class includes `@` so that curl's
 // file-attach syntax (`--data-binary @.env`) is recognized as a read, and `~`/`.`
 // so that `~/.aws/credentials` matches on the path segment.
+// `.env.example` / `.env.sample` / `.env.template` are committed placeholders with
+// no live credentials in them — treating them as secrets is a false positive that
+// fires on the most common onboarding command there is (`cp .env.example .env`).
 const SECRET_FILE =
-  /(^|[\s'"=<|/@~])(\.env(?:\.[\w.-]+)?|id_rsa|id_ed25519|id_ecdsa|[\w.-]*\.(?:pem|p12|pfx|key)|credentials|\.netrc|\.npmrc|\.pgpass|\.htpasswd)\b/gi;
+  /(^|[\s'"=<|/@~])(\.env(?!\.(?:example|sample|template|dist|default|tpl|schema)\b)(?:\.[\w.-]+)?|id_rsa|id_ed25519|id_ecdsa|[\w.-]*\.(?:pem|p12|pfx|key)|credentials|\.netrc|\.npmrc|\.pgpass|\.htpasswd)\b/gi;
 
 // Whole directories/files that are credential stores. Matched as paths, so that
 // `rsync ~/.ssh/ host:` and `tar czf b.tgz ~/.aws` both count as reads.
 const SECRET_PATH =
-  /(\.ssh\/?|\.aws\/(?:credentials|config)?|\.aws\b|\.kube\/config|\.kube\b|\.docker\/config\.json|\.docker\b|\.gnupg\b|\.config\/gcloud\b)/gi;
+  /(\.ssh\/?|\.aws\/(?:credentials|config)?|\.aws\b|\.kube\/config|\.kube\b|\.docker\/config\.json|\.docker\b|\.gnupg\b|\.config\/gcloud\b|\.git-credentials|\.pypirc|\.cargo\/credentials(?:\.toml)?|\.m2\/settings\.xml|\.config\/gh\/hosts\.ya?ml|\.terraformrc|terraform\.tfstate|\.kaggle\/kaggle\.json|\.config\/hub|\.bundle\/config|\.gem\/credentials|\.databrickscfg|\.snowflake|\.oci\/config|\/proc\/self\/environ|\/proc\/\d+\/environ)/gi;
+
+// Commands that PRINT a credential rather than reading a file. The secret never
+// touches disk, so path matching alone cannot see it — the verb is the source.
+const SECRET_COMMAND: { re: RegExp; label: string }[] = [
+  { re: /\bkubectl\s+get\s+secrets?\b[^\n]*(-o|--output)\s*[= ]?\s*(yaml|json|jsonpath)/, label: "kubectl secret values" },
+  { re: /\bsecurity\s+find-(?:generic|internet)-password\b[^\n]*-w/, label: "macOS keychain" },
+  { re: /\bgcloud\s+auth\s+(?:print-access-token|print-identity-token)\b/, label: "gcloud token" },
+  { re: /\baws\s+configure\s+get\b|\baws\s+sts\s+get-session-token\b/, label: "aws credentials" },
+  { re: /\bdocker\s+inspect\b/, label: "docker inspect (container env)" },
+  { re: /\bhelm\s+get\s+values\b/, label: "helm values" },
+  { re: /\bps\s+e?\s*(?:ww?|aux)?\s*e\b|\bps\s+eww?\b/, label: "process environment" },
+  { re: /\bgit\s+config\b[^\n]*\b(?:user\.password|credential)\b/, label: "git credential config" },
+  { re: /\bvault\s+(?:read|kv\s+get)\b/, label: "vault secret" },
+  { re: /\bop\s+(?:read|item\s+get)\b/, label: "1password secret" },
+  { re: /\bcat\s+[^\n|]*\.tfstate\b/, label: "terraform state" },
+];
 
 // A reference to an environment variable whose name looks secret-bearing.
 // Covers shell ($X, ${X}), Python (os.environ["X"], os.getenv("X")) and
@@ -117,6 +164,8 @@ function findSecretSources(command: string): string[] {
 
   if (ENV_DUMP.test(command)) sources.add("environment (full dump)");
 
+  for (const { re, label } of SECRET_COMMAND) if (re.test(command)) sources.add(label);
+
   // A freshly-added remote only matters if something then pushes to it.
   if (GIT_REMOTE_ADD.test(command) && /\bgit\s+push\b/.test(command)) {
     sources.add("repository contents");
@@ -142,6 +191,15 @@ const SINKS: { re: RegExp; label: string }[] = [
   { re: /\b(perl|ruby|php)\b[^\n]*\b(LWP|Net::|open-uri|net\/http|file_get_contents|curl_)\b/i, label: "interpreter-http" },
   { re: /\bgit\s+push\b/, label: "git-push" },
   { re: /\bmail\b|\bsendmail\b|\bmutt\b/, label: "mail" },
+  // Egress channels that are not obviously "the network".
+  { re: /\bpbcopy\b|\bxclip\b|\bxsel\b|\bclip\.exe\b/, label: "clipboard" },
+  { re: /(^|[\s;|&])https?\s+(?:--?\w+\s+)*(?:POST|PUT|GET|PATCH)\b|(^|[\s;|&])http\s+\S+\.\S+/, label: "httpie" },
+  { re: /\blftp\b|\bftp\b|\btelnet\b|\bcurlftpfs\b/, label: "ftp/telnet" },
+  { re: /\b(?:open|xdg-open|start)\s+["']?https?:\/\//, label: "browser" },
+  { re: /\baws\s+s3\s+(?:cp|sync|mv)\b[^\n]*s3:\/\//, label: "s3-upload" },
+  { re: /\bgh\s+gist\s+create\b|\bgh\s+release\s+upload\b/, label: "gh-publish" },
+  { re: /\bpython3?\s+-m\s+http\.server\b|\bnpx\s+serve\b|\bphp\s+-S\b/, label: "local-http-server" },
+  { re: /\b(?:gsutil|az\s+storage\s+blob)\s+(?:cp|upload)\b/, label: "cloud-upload" },
 ];
 
 function findSink(command: string): string | undefined {
