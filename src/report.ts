@@ -2,9 +2,11 @@
 // trail is the thing security/compliance teams care about most, so make it easy to see.
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { loadConfig, expandHome } from "./config.js";
 
 type Entry = {
   ts: string;
+  cwd?: string;
   channel: string;
   detail: string;
   action: "allow" | "block";
@@ -13,8 +15,14 @@ type Entry = {
   hits?: { kind: string; redacted: string }[];
 };
 
+/** Resolve the same log the hook writes to — which may be central, not per-project. */
+export function logPath(cwd: string): string {
+  const cfg = loadConfig(cwd);
+  return cfg.logFile ? expandHome(cfg.logFile) : join(cwd, ".egresso", "audit.jsonl");
+}
+
 function load(cwd: string): Entry[] {
-  const file = join(cwd, ".egresso", "audit.jsonl");
+  const file = logPath(cwd);
   if (!existsSync(file)) return [];
   return readFileSync(file, "utf8")
     .split("\n")
@@ -32,7 +40,7 @@ function load(cwd: string): Entry[] {
 export function showLog(cwd = process.cwd(), limit = 20): void {
   const entries = load(cwd);
   if (entries.length === 0) {
-    console.log("No audit entries yet. Decisions are logged to .egresso/audit.jsonl once egresso runs.");
+    console.log(`No audit entries yet. Decisions are logged to ${logPath(cwd)} once egresso runs.`);
     return;
   }
   for (const e of entries.slice(-limit)) {

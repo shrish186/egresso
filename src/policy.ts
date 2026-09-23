@@ -9,7 +9,11 @@ export type Verdict = "allow" | "warn" | "ask" | "block";
 export type Category = "secret-exfiltration" | "destructive" | "custom" | "clean";
 
 export type PolicyDecision = {
-  verdict: Verdict;
+  verdict: Verdict; // what is ENFORCED (already downgraded by warn mode)
+  /** What the policy would have done ignoring `mode`. Warn-mode evaluation runs
+   *  depend on this: without it the audit log records every near-miss as "allow"
+   *  and the whole point of a warn week is lost. */
+  rawVerdict?: Verdict;
   category: Category;
   severity: "high" | "medium" | "low";
   reason: string;
@@ -94,7 +98,7 @@ export function evaluateCommand(command: string, cfg: EngineConfig = {}): Policy
   }
 
   if (candidates.length === 0) {
-    return { verdict: "allow", category: "clean", severity: "low", reason: "No policy violation.", findings: [] };
+    return { verdict: "allow", rawVerdict: "allow", category: "clean", severity: "low", reason: "No policy violation.", findings: [] };
   }
 
   // Strictest verdict wins; merge findings from every candidate at that level+above.
@@ -103,6 +107,7 @@ export function evaluateCommand(command: string, cfg: EngineConfig = {}): Policy
   return {
     ...worst,
     verdict: applyMode(worst.verdict, cfg.mode),
+    rawVerdict: worst.verdict,
     findings: [...new Set(merged.flatMap((c) => c.findings))],
     reason: worst.reason,
   };
@@ -146,7 +151,7 @@ export function evaluateToolCall(
   }
 
   if (candidates.length === 0) {
-    return { verdict: "allow", category: "clean", severity: "low", reason: "No policy violation.", findings: [] };
+    return { verdict: "allow", rawVerdict: "allow", category: "clean", severity: "low", reason: "No policy violation.", findings: [] };
   }
   const worst = candidates.reduce((a, b) => (RANK[b.verdict] > RANK[a.verdict] ? b : a));
   return { ...worst, verdict: applyMode(worst.verdict, cfg.mode) };

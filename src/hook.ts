@@ -70,12 +70,15 @@ export async function runHook(): Promise<void> {
     decision = evaluateToolCall(tool, ti, engineCfg);
   }
 
+  // Log what the POLICY decided, not what warn mode let through — otherwise a
+  // warn-mode evaluation week records nothing but "allow".
+  const policyVerdict = decision.rawVerdict ?? decision.verdict;
   logDecision(
     cwd,
     cfg,
-    { channel: `claude-code:${tool}`, detail },
+    { channel: `claude-code:${tool}`, detail, enforced: policyVerdict === decision.verdict },
     {
-      action: decision.verdict === "block" ? "block" : "allow",
+      action: policyVerdict === "block" || policyVerdict === "ask" ? "block" : "allow",
       reason: decision.reason,
       destination: decision.destination,
       hits: [],
