@@ -4,3 +4,6 @@ dist
 .env
 .env.*
 !.env.example
+
+# runtime audit log — never commit real agent activity
+.agentwall/audit.jsonl

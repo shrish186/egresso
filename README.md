@@ -70,7 +70,7 @@ calls return an error to the model instead of executing:
 ## Try the attack demo
 
 ```bash
-git clone https://github.com/YOURNAME/agentwall && cd agentwall
+git clone https://github.com/shrish186/agentwall && cd agentwall
 npm install && npm run build
 bash demo/run.sh
 ```
@@ -121,7 +121,7 @@ if (d.verdict === "block") throw new Error(d.reason);
 
 This is a security tool, so the most useful contribution is an **evasion**. If you can
 get a secret out or run a destructive command past agentwall, please
-[open an issue](https://github.com/YOURNAME/agentwall/issues) with the command — we'll
+[open an issue](https://github.com/shrish186/agentwall/issues) with the command — we'll
 add it to the adversarial test suite (`test/bypass.test.ts`) and fix it.
 
 **Known limitations (v0), by design — help wanted:**
