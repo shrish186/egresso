@@ -1,5 +1,5 @@
 {
-  "name": "agentwall",
+  "name": "egresso",
   "version": "0.1.0",
   "scripts": {
     "test": "vitest run",
@@ -30,7 +30,7 @@
   },
   "type": "module",
   "bin": {
-    "agentwall": "dist/bin/cli.js"
+    "egresso": "dist/bin/cli.js"
   },
   "engines": {
     "node": ">=18"

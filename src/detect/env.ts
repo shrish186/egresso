@@ -1,5 +1,5 @@
 // Loads the project's own secrets from .env files so we can detect exact-value
-// leaks. This is what makes agentwall "know your secrets" rather than guessing.
+// leaks. This is what makes egresso "know your secrets" rather than guessing.
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 

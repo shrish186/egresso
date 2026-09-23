@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// agentwall CLI.
+// egresso CLI.
 //   hook            Run as a Claude Code PreToolUse hook (reads stdin JSON).
 //   proxy -- <cmd>  Wrap an MCP server; inspect every tools/call.
 //   check "<cmd>"   Evaluate a shell command and print the verdict.
@@ -80,15 +80,15 @@ async function main() {
 
     default:
       console.log(
-        `agentwall — a firewall for AI agents\n\n` +
-          `  agentwall init            Wire the Claude Code hook + starter config\n` +
-          `  agentwall doctor          Verify enforcement is live\n` +
-          `  agentwall proxy -- <cmd>  Wrap an MCP server and inspect every tool call\n` +
-          `  agentwall check "<cmd>"   Evaluate a shell command\n` +
-          `  agentwall scan <file>     Scan a file/stdin for secrets\n` +
-          `  agentwall log [n]         Show recent audit decisions\n` +
-          `  agentwall report          Audit summary\n` +
-          `  agentwall hook            (used by the Claude Code hook)\n`
+        `egresso — a firewall for AI agents\n\n` +
+          `  egresso init            Wire the Claude Code hook + starter config\n` +
+          `  egresso doctor          Verify enforcement is live\n` +
+          `  egresso proxy -- <cmd>  Wrap an MCP server and inspect every tool call\n` +
+          `  egresso check "<cmd>"   Evaluate a shell command\n` +
+          `  egresso scan <file>     Scan a file/stdin for secrets\n` +
+          `  egresso log [n]         Show recent audit decisions\n` +
+          `  egresso report          Audit summary\n` +
+          `  egresso hook            (used by the Claude Code hook)\n`
       );
       process.exitCode = cmd ? 1 : 0;
   }

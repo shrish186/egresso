@@ -1,4 +1,4 @@
-// Public library API — import agentwall directly to inspect actions in your own
+// Public library API — import egresso directly to inspect actions in your own
 // agent framework (LangGraph, custom loops, MCP servers, etc.).
 export { scan, entropy, redact, type SecretHit, type ScanOptions } from "./detect/secrets.js";
 export { loadKnownSecrets } from "./detect/env.js";
@@ -9,7 +9,7 @@ export {
   type Decision,
   type PolicyConfig,
 } from "./enforce/action.js";
-export { loadConfig, logDecision, type AgentwallConfig } from "./config.js";
+export { loadConfig, logDecision, type EgressoConfig } from "./config.js";
 export { analyzeDestructive, type DestructiveFinding } from "./enforce/destructive.js";
 export {
   evaluateCommand,

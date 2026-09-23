@@ -4,7 +4,7 @@
 // the client gets an error result explaining why. This is the vendor-neutral
 // enforcement point — the same policy protects every MCP-based agent.
 //
-//   agentwall proxy -- npx -y @some/mcp-server --flag
+//   egresso proxy -- npx -y @some/mcp-server --flag
 //
 // MCP stdio framing is newline-delimited JSON (one message per line).
 import { spawn } from "node:child_process";
@@ -25,7 +25,7 @@ export function runProxy(argv: string[]): void {
   const sep = argv.indexOf("--");
   const serverCmd = sep === -1 ? argv : argv.slice(sep + 1);
   if (serverCmd.length === 0) {
-    process.stderr.write("agentwall proxy: no server command. Usage: agentwall proxy -- <cmd> [args]\n");
+    process.stderr.write("egresso proxy: no server command. Usage: egresso proxy -- <cmd> [args]\n");
     process.exit(1);
   }
 
@@ -35,7 +35,7 @@ export function runProxy(argv: string[]): void {
 
   const child = spawn(serverCmd[0], serverCmd.slice(1), { stdio: ["pipe", "pipe", "inherit"] });
   child.on("error", (e) => {
-    process.stderr.write(`agentwall proxy: failed to start server: ${e.message}\n`);
+    process.stderr.write(`egresso proxy: failed to start server: ${e.message}\n`);
     process.exit(1);
   });
   child.on("exit", (code) => process.exit(code ?? 0));
@@ -97,7 +97,7 @@ function blockedResult(id: JsonRpc["id"], tool: string, d: PolicyDecision) {
         {
           type: "text",
           text:
-            `agentwall BLOCKED tool "${tool}": ${d.reason}${detail}\n` +
+            `egresso BLOCKED tool "${tool}": ${d.reason}${detail}\n` +
             `Category: ${d.category}. This action was not executed.`,
         },
       ],

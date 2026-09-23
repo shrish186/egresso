@@ -1,23 +1,23 @@
-// Loads agentwall config + the audit log. Config is optional; zero-config is the
+// Loads egresso config + the audit log. Config is optional; zero-config is the
 // default (any outbound destination is untrusted, so any secret egress is blocked).
 import { readFileSync, existsSync, appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { PolicyConfig } from "./enforce/action.js";
 import type { Decision } from "./enforce/action.js";
 
-export type AgentwallConfig = PolicyConfig & {
-  logFile?: string; // default .agentwall/audit.jsonl
+export type EgressoConfig = PolicyConfig & {
+  logFile?: string; // default .egresso/audit.jsonl
   mode?: "block" | "warn"; // warn = log but allow; default block
 };
 
-const CONFIG_FILES = ["agentwall.config.json", ".agentwall.json"];
+const CONFIG_FILES = ["egresso.config.json", ".egresso.json"];
 
-export function loadConfig(cwd = process.cwd()): AgentwallConfig {
+export function loadConfig(cwd = process.cwd()): EgressoConfig {
   for (const f of CONFIG_FILES) {
     const p = join(cwd, f);
     if (existsSync(p)) {
       try {
-        return JSON.parse(readFileSync(p, "utf8")) as AgentwallConfig;
+        return JSON.parse(readFileSync(p, "utf8")) as EgressoConfig;
       } catch {
         /* fall through to defaults */
       }
@@ -28,11 +28,11 @@ export function loadConfig(cwd = process.cwd()): AgentwallConfig {
 
 export function logDecision(
   cwd: string,
-  cfg: AgentwallConfig,
+  cfg: EgressoConfig,
   context: { channel: string; detail: string },
   decision: Decision
 ): void {
-  const dir = join(cwd, ".agentwall");
+  const dir = join(cwd, ".egresso");
   const file = cfg.logFile ?? join(dir, "audit.jsonl");
   const entry = {
     ts: new Date().toISOString(),

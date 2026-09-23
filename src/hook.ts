@@ -1,10 +1,10 @@
 // Claude Code PreToolUse hook. Reads the hook JSON on stdin, evaluates the tool call
 // against the full policy engine (secret exfiltration + destructive actions + custom
 // rules), and blocks or asks-for-approval before the tool runs. Wire it up with
-// `agentwall init`, or manually in .claude/settings.json:
+// `egresso init`, or manually in .claude/settings.json:
 //
 //   "hooks": { "PreToolUse": [{ "matcher": "Bash",
-//     "hooks": [{ "type": "command", "command": "npx agentwall hook" }] }] }
+//     "hooks": [{ "type": "command", "command": "npx egresso hook" }] }] }
 //
 // Signalling: we emit Claude Code's hookSpecificOutput JSON so we can return
 // allow / ask / deny. Exit 0 always; the JSON carries the decision.
@@ -31,7 +31,7 @@ function emit(decision: PolicyDecision): void {
     process.exit(0); // stay silent; let normal permissioning proceed
   }
   const detail = decision.findings.length ? ` [${decision.findings.join(", ")}]` : "";
-  const reason = `agentwall (${decision.category}): ${decision.reason}${detail}`;
+  const reason = `egresso (${decision.category}): ${decision.reason}${detail}`;
   process.stdout.write(
     JSON.stringify({
       hookSpecificOutput: {

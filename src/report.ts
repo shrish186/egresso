@@ -1,4 +1,4 @@
-// Reads .agentwall/audit.jsonl and prints recent decisions or a summary. The audit
+// Reads .egresso/audit.jsonl and prints recent decisions or a summary. The audit
 // trail is the thing security/compliance teams care about most, so make it easy to see.
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -14,7 +14,7 @@ type Entry = {
 };
 
 function load(cwd: string): Entry[] {
-  const file = join(cwd, ".agentwall", "audit.jsonl");
+  const file = join(cwd, ".egresso", "audit.jsonl");
   if (!existsSync(file)) return [];
   return readFileSync(file, "utf8")
     .split("\n")
@@ -32,7 +32,7 @@ function load(cwd: string): Entry[] {
 export function showLog(cwd = process.cwd(), limit = 20): void {
   const entries = load(cwd);
   if (entries.length === 0) {
-    console.log("No audit entries yet. Decisions are logged to .agentwall/audit.jsonl once agentwall runs.");
+    console.log("No audit entries yet. Decisions are logged to .egresso/audit.jsonl once egresso runs.");
     return;
   }
   for (const e of entries.slice(-limit)) {
@@ -48,7 +48,7 @@ export function showReport(cwd = process.cwd()): void {
   const entries = load(cwd);
   const total = entries.length;
   const blocked = entries.filter((e) => e.action === "block");
-  console.log(`agentwall audit summary`);
+  console.log(`egresso audit summary`);
   console.log(`  actions inspected: ${total}`);
   console.log(`  blocked:           ${blocked.length}`);
   if (blocked.length) {

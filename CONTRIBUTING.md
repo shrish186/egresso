@@ -1,10 +1,10 @@
-# Contributing to agentwall
+# Contributing to egresso
 
 Thanks for helping make AI agents safer to run.
 
 ## The most valuable contribution: break it
 
-agentwall is a security tool. If you can sneak a secret out or run a destructive
+egresso is a security tool. If you can sneak a secret out or run a destructive
 command past it, that's a bug we want. Open an issue titled `bypass:` with the exact
 command. We'll reproduce it, add it to `test/bypass.test.ts`, and fix it.
 

@@ -1,10 +1,10 @@
-// `agentwall init` and `agentwall doctor`. init wires the PreToolUse hook into
+// `egresso init` and `egresso doctor`. init wires the PreToolUse hook into
 // .claude/settings.json (merging, not clobbering) and writes a starter config.
 // doctor verifies the setup so users can confirm enforcement is actually live.
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-const HOOK_CMD = "npx agentwall hook";
+const HOOK_CMD = "npx egresso hook";
 
 const STARTER_CONFIG = {
   mode: "block",
@@ -25,12 +25,12 @@ type Settings = {
 
 export function runInit(cwd = process.cwd()): void {
   // 1. Starter config.
-  const cfgPath = join(cwd, "agentwall.config.json");
+  const cfgPath = join(cwd, "egresso.config.json");
   if (existsSync(cfgPath)) {
-    console.log(`• agentwall.config.json already exists — left as is.`);
+    console.log(`• egresso.config.json already exists — left as is.`);
   } else {
     writeFileSync(cfgPath, JSON.stringify(STARTER_CONFIG, null, 2) + "\n");
-    console.log(`✓ wrote agentwall.config.json`);
+    console.log(`✓ wrote egresso.config.json`);
   }
 
   // 2. Merge the hook into .claude/settings.json.
@@ -51,16 +51,16 @@ export function runInit(cwd = process.cwd()): void {
   settings.hooks ??= {};
   settings.hooks.PreToolUse ??= [];
   const already = settings.hooks.PreToolUse.some((m) =>
-    m.hooks?.some((h) => h.command?.includes("agentwall"))
+    m.hooks?.some((h) => h.command?.includes("egresso"))
   );
   if (already) {
-    console.log(`• PreToolUse hook already references agentwall — left as is.`);
+    console.log(`• PreToolUse hook already references egresso — left as is.`);
   } else {
     settings.hooks.PreToolUse.push({ matcher: "Bash", hooks: [{ type: "command", command: HOOK_CMD }] });
     writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
     console.log(`✓ added PreToolUse hook to .claude/settings.json`);
   }
-  console.log(`\nEnforcement is live. Run 'agentwall doctor' to verify, 'agentwall log' to watch decisions.`);
+  console.log(`\nEnforcement is live. Run 'egresso doctor' to verify, 'egresso log' to watch decisions.`);
 }
 
 export function runDoctor(cwd = process.cwd()): void {
@@ -76,20 +76,20 @@ export function runDoctor(cwd = process.cwd()): void {
   if (existsSync(settingsPath)) {
     try {
       const s = JSON.parse(readFileSync(settingsPath, "utf8")) as Settings;
-      hookWired = !!s.hooks?.PreToolUse?.some((m) => m.hooks?.some((h) => h.command?.includes("agentwall")));
+      hookWired = !!s.hooks?.PreToolUse?.some((m) => m.hooks?.some((h) => h.command?.includes("egresso")));
     } catch {
       /* leave hookWired false */
     }
   }
-  check("PreToolUse hook wired in .claude/settings.json", hookWired, "run 'agentwall init'");
-  check("agentwall.config.json present", existsSync(join(cwd, "agentwall.config.json")), "run 'agentwall init' (optional; zero-config also works)");
+  check("PreToolUse hook wired in .claude/settings.json", hookWired, "run 'egresso init'");
+  check("egresso.config.json present", existsSync(join(cwd, "egresso.config.json")), "run 'egresso init' (optional; zero-config also works)");
 
   const envFiles = [".env", ".env.local"].filter((f) => existsSync(join(cwd, f)));
   check(
     `secret source detected (${envFiles.length ? envFiles.join(", ") : "none in cwd"})`,
     true,
-    envFiles.length ? undefined : "no .env here — agentwall still catches known key formats + high-entropy tokens"
+    envFiles.length ? undefined : "no .env here — egresso still catches known key formats + high-entropy tokens"
   );
 
-  console.log(ok ? "\nAll good — agentwall is set up." : "\nSome checks failed — see hints above.");
+  console.log(ok ? "\nAll good — egresso is set up." : "\nSome checks failed — see hints above.");
 }
