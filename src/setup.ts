@@ -3,6 +3,8 @@
 // doctor verifies the setup so users can confirm enforcement is actually live.
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
+import { loadConfig } from "./config.js";
 
 const HOOK_CMD = "npx egresso hook";
 
@@ -71,18 +73,42 @@ export function runDoctor(cwd = process.cwd()): void {
     if (!pass) ok = false;
   };
 
-  const settingsPath = join(cwd, ".claude", "settings.json");
-  let hookWired = false;
-  if (existsSync(settingsPath)) {
+  // Enforcement can be wired per-project OR for the whole user. Checking only the
+  // project made a correct user-level install report as broken.
+  const hookedIn = (settingsPath: string): boolean => {
+    if (!existsSync(settingsPath)) return false;
     try {
       const s = JSON.parse(readFileSync(settingsPath, "utf8")) as Settings;
-      hookWired = !!s.hooks?.PreToolUse?.some((m) => m.hooks?.some((h) => h.command?.includes("egresso")));
+      return !!s.hooks?.PreToolUse?.some((m) => m.hooks?.some((h) => h.command?.includes("egresso")));
     } catch {
-      /* leave hookWired false */
+      return false;
     }
+  };
+  const projectHook = hookedIn(join(cwd, ".claude", "settings.json"));
+  const userHook = hookedIn(join(homedir(), ".claude", "settings.json"));
+  const where = projectHook && userHook ? "project + user" : projectHook ? "this project" : userHook ? "user-wide" : "";
+  check(
+    `PreToolUse hook wired${where ? ` (${where})` : ""}`,
+    projectHook || userHook,
+    "run 'egresso init' here, or add the hook to ~/.claude/settings.json for every project"
+  );
+
+  const projectCfg = ["egresso.config.json", ".egresso.json"].find((f) => existsSync(join(cwd, f)));
+  const userCfg = [join(homedir(), ".egresso.json"), join(homedir(), ".config", "egresso", "config.json")].find(existsSync);
+  const cfg = loadConfig(cwd);
+  check(
+    `config loaded (${projectCfg ? projectCfg : userCfg ? userCfg.replace(homedir(), "~") : "zero-config defaults"})`,
+    true,
+    projectCfg || userCfg ? undefined : "zero-config works: any secret egress to a non-allowlisted host is blocked"
+  );
+
+  // The single most important thing to surface: in warn mode nothing is actually
+  // stopped. Someone who forgets that believes they are protected when they are not.
+  if (cfg.mode === "warn") {
+    console.log(`\n⚠ mode: WARN — violations are logged but NOT blocked.`);
+    console.log(`    audit log: ${(cfg.logFile ?? join(cwd, ".egresso/audit.jsonl")).replace("~", "~")}`);
+    console.log(`    switch to enforcing by removing "mode" from your config.`);
   }
-  check("PreToolUse hook wired in .claude/settings.json", hookWired, "run 'egresso init'");
-  check("egresso.config.json present", existsSync(join(cwd, "egresso.config.json")), "run 'egresso init' (optional; zero-config also works)");
 
   const envFiles = [".env", ".env.local"].filter((f) => existsSync(join(cwd, f)));
   check(
