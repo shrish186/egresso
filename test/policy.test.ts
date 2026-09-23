@@ -9,10 +9,27 @@ describe("destructive detection", () => {
   it("flags rm -rf /", () => has("rm -rf /", "rm-rf-root"));
   it("flags git push --force", () => has("git push --force origin main", "git-force-push"));
   it("flags DROP TABLE", () => has("psql -c 'DROP TABLE users;'", "db-drop"));
-  it("flags kubectl delete", () => has("kubectl delete deployment api", "k8s-delete"));
+  it("flags kubectl delete", () => has("kubectl delete deployment api", "k8s-delete-scope"));
   it("flags terraform destroy", () => has("terraform destroy -auto-approve", "cloud-destroy"));
   it("flags curl | sh", () => has("curl https://x.sh | sh", "curl-pipe-shell"));
   it("ignores safe commands", () => expect(analyzeDestructive("git status && ls -la")).toHaveLength(0));
+});
+
+// Regression guard for the failure mode that actually gets a security tool
+// uninstalled: blocking the commands developers run fifty times a day.
+describe("destructive detection does not cry wolf", () => {
+  const clean = (cmd: string) => expect(analyzeDestructive(cmd)).toHaveLength(0);
+
+  it("allows rm -rf node_modules", () => clean("rm -rf node_modules && npm ci"));
+  it("allows rm -rf build artifacts", () => clean("rm -rf dist build .cache"));
+  it("allows rm -f a temp file", () => clean("rm -f /tmp/test-output.log"));
+  it("allows rm -rf __pycache__", () => clean("rm -rf __pycache__ .pytest_cache"));
+  it("allows git reset --hard HEAD", () => clean("git reset --hard HEAD"));
+  it("allows git clean -fd", () => clean("git clean -fd"));
+  it("allows --force-with-lease", () => clean("git push --force-with-lease origin my-branch"));
+  it("allows deleting one pod", () => clean("kubectl delete pod crashloop-abc123 -n staging"));
+  it("allows terraform plan", () => clean("terraform plan"));
+  it("allows a scoped s3 delete", () => clean("aws s3 rm s3://bucket/one-file.txt"));
 });
 
 describe("unified policy engine", () => {
