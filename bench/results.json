@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T15:59:23.445Z",
+  "generatedAt": "2026-09-23T15:59:51.881Z",
   "tier1": [
     {
       "engine": "egresso",
@@ -9,7 +9,7 @@
       "balanced": 1,
       "attacksTotal": 81,
       "benignTotal": 40,
-      "medianUs": 8.875,
+      "medianUs": 9.125,
       "misses": [],
       "falsePositives": [],
       "byTechnique": {
@@ -636,7 +636,7 @@
       "balanced": 1,
       "attacksTotal": 48,
       "benignTotal": 20,
-      "medianUs": 6.875,
+      "medianUs": 7.208,
       "misses": [],
       "falsePositives": [],
       "byTechnique": {
@@ -670,7 +670,7 @@
       "balanced": 0.5625,
       "attacksTotal": 48,
       "benignTotal": 20,
-      "medianUs": 1.084,
+      "medianUs": 1.125,
       "misses": [
         {
           "id": "h-src-01",
