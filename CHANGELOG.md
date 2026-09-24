@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 — 2026-09-23
+
+First public release.
 - Secret-exfiltration enforcement with data-flow analysis (source → sink), catching
   base64/hex/env-var/DNS/staging evasions, not just literal secret strings.
 - Destructive-command detection (rm -rf, force-push, DROP TABLE, kubectl delete, etc.).

@@ -9,16 +9,24 @@
     "bench": "tsx bench/run.ts"
   },
   "keywords": [
-    "ai",
     "agent",
-    "security",
-    "mcp",
-    "prompt-injection",
-    "llm",
+    "agent-security",
+    "ai",
+    "ai-safety",
+    "claude",
+    "claude-code",
+    "dlp",
+    "exfiltration",
     "firewall",
-    "claude"
+    "guardrails",
+    "hooks",
+    "llm",
+    "mcp",
+    "model-context-protocol",
+    "prompt-injection",
+    "security"
   ],
-  "author": "",
+  "author": "Shrish Kapoor",
   "license": "MIT",
   "description": "A firewall for AI agents \u2014 blocks secret exfiltration and destructive actions at the tool-call level",
   "devDependencies": {
@@ -42,5 +50,13 @@
     "dist",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shrish186/egresso.git"
+  },
+  "homepage": "https://shrish186.github.io/egresso/",
+  "bugs": {
+    "url": "https://github.com/shrish186/egresso/issues"
+  }
 }

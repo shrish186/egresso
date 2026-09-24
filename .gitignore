@@ -7,3 +7,6 @@ dist
 
 # runtime audit log — never commit real agent activity
 .egresso/audit.jsonl
+
+# npm pack output
+*.tgz
