@@ -2,7 +2,7 @@
 // command, an HTTP request, an arbitrary tool payload), decide whether it would
 // exfiltrate secrets to somewhere it shouldn't — and block it before it runs.
 import { scan, type SecretHit, type ScanOptions } from "../detect/secrets.js";
-import { analyzeFlow } from "./dataflow.js";
+import { analyzeFlow, secretSourcesIn } from "./dataflow.js";
 
 export type Decision = {
   action: "allow" | "block";
@@ -131,6 +131,25 @@ export function inspectToolCall(
   const hits = scan(serialized, policy.scan);
   const dest = extractDestination(serialized);
   const allow = policy.allowedDestinations ?? [];
+
+  // Tool calls get the same source analysis as shell commands. Without this the MCP
+  // path was strictly weaker than the shell path: an agent could post
+  // `$ANTHROPIC_API_KEY` or a `.env` reference through a tool and never be seen,
+  // because scan() only finds secret *values*, never references to them.
+  //
+  // There is no sink verb to look for here — invoking the tool is itself the egress —
+  // so a secret source plus a destination we do not trust is enough.
+  const sources = secretSourcesIn(serialized);
+  if (sources.length > 0 && !destinationAllowed(dest, allow)) {
+    return {
+      action: "block",
+      reason: `Tool "${toolName}" references secret source(s) [${sources.join(", ")}]${
+        dest ? ` with destination "${dest}"` : " and no identified destination"
+      }.`,
+      hits,
+      destination: dest,
+    };
+  }
 
   if (hits.length > 0 && !destinationAllowed(dest, allow)) {
     return {

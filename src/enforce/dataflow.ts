@@ -26,6 +26,22 @@ const SECRET_BASENAMES = [
   ".netrc", ".npmrc", ".pgpass", "server.pem", "key.p12", "cert.pfx",
 ];
 
+/**
+ * Decode base64 without assuming Node. The engine is deliberately free of
+ * platform APIs so the same analysis runs in a browser playground, an edge
+ * worker or Deno — not just behind the CLI.
+ */
+function decodeBase64(b64: string): string | null {
+  try {
+    const g = globalThis as { atob?: (s: string) => string; Buffer?: { from(s: string, enc: string): { toString(enc: string): string } } };
+    if (typeof g.atob === "function") return g.atob(b64);
+    if (g.Buffer) return g.Buffer.from(b64, "base64").toString("utf8");
+  } catch {
+    /* malformed base64 */
+  }
+  return null;
+}
+
 /** Does a shell glob token resolve to something secret-bearing? */
 function globMatchesSecret(token: string): boolean {
   if (!/[*?\[]/.test(token)) return false;
@@ -52,12 +68,8 @@ export function normalize(command: string): string {
   //    eval $(echo 'Y2F0IC5lbnY=' | base64 -d)
   //    Decode the literal and append it so its contents are analyzed too.
   for (const m of s.matchAll(/['"]?([A-Za-z0-9+/=]{8,})['"]?\s*\|\s*(?:openssl\s+)?base64\s+(?:-d|-D|--decode)/g)) {
-    try {
-      const decoded = Buffer.from(m[1], "base64").toString("utf8");
-      if (/^[\x20-\x7e\s]+$/.test(decoded)) s += " ; " + decoded;
-    } catch {
-      /* not valid base64 — ignore */
-    }
+    const decoded = decodeBase64(m[1]);
+    if (decoded && /^[\x20-\x7e\s]+$/.test(decoded)) s += " ; " + decoded;
   }
 
   // 4. ANSI-C quoting: $'\x2eenv' -> .env
@@ -214,6 +226,17 @@ const EXTERNAL_PATH =
   /(^|\s|>)(\/tmp\/|\/var\/tmp\/|\/private\/tmp\/|\/var\/www\/|\/usr\/share\/nginx\/|\/srv\/http\/|\/public\/|~\/(?!\.config)|\/Users\/[^/]+\/(?:Public|Downloads)\/)/;
 
 // ---------------------------------------------------------------------------
+
+/**
+ * Secret sources referenced anywhere in a blob of text, with normalization applied.
+ *
+ * For a shell command the sink is a verb we can name (`curl`, `nc`, DNS). For an MCP
+ * tool call there is no verb — the call itself IS the egress — so callers on that path
+ * need the sources alone and supply the destination themselves.
+ */
+export function secretSourcesIn(text: string): string[] {
+  return findSecretSources(normalize(text));
+}
 
 /** Analyze one shell command for a source→sink exfiltration path. */
 export function analyzeFlow(command: string): FlowFinding | null {

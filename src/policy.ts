@@ -154,5 +154,5 @@ export function evaluateToolCall(
     return { verdict: "allow", rawVerdict: "allow", category: "clean", severity: "low", reason: "No policy violation.", findings: [] };
   }
   const worst = candidates.reduce((a, b) => (RANK[b.verdict] > RANK[a.verdict] ? b : a));
-  return { ...worst, verdict: applyMode(worst.verdict, cfg.mode) };
+  return { ...worst, verdict: applyMode(worst.verdict, cfg.mode), rawVerdict: worst.verdict };
 }
