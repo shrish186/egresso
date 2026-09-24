@@ -54,8 +54,36 @@ function globMatchesSecret(token: string): boolean {
   return SECRET_BASENAMES.some((n) => rx.test(n));
 }
 
+/**
+ * Remove here-document bodies, which are DATA being written, not commands.
+ *
+ * Writing a test file, a README or a git commit message that happens to mention
+ * `.env` is not reading `.env`. Treating heredoc bodies as executable text made
+ * egresso flag roughly a third of real development commands — writing docs,
+ * committing with a descriptive message, generating an HTML page.
+ *
+ * Exception: `bash <<EOF` and friends really do execute the body, so those stay.
+ * Literal secret VALUES in a heredoc are still caught, because scan() runs over
+ * the untouched command text separately.
+ */
+/** Commands whose here-doc body is executed rather than written. */
+const EXECUTES_HEREDOC = /^(?:bash|sh|zsh|ksh|dash|fish|python3?|node|deno|bun|perl|ruby|php|eval|source|\.)$/;
+
+function stripHeredocs(command: string): string {
+  return command.replace(
+    /(^|[\s;|&])(\S*)\s*<<-?\s*(['"]?)([A-Za-z_]\w*)\3[^\n]*\n[\s\S]*?^\4\s*$/gm,
+    (whole, pre: string, target: string) => {
+      // Match on the basename, anchored. A loose test here matched any filename
+      // containing a dot (`policy.test.ts`, `index.html`), so bodies that were
+      // plainly data got analyzed as code.
+      const base = (target.split("/").pop() ?? target).replace(/^["']|["']$/g, "");
+      return EXECUTES_HEREDOC.test(base) ? whole : `${pre}${target} <<HEREDOC`;
+    }
+  );
+}
+
 export function normalize(command: string): string {
-  let s = command;
+  let s = stripHeredocs(command);
 
   // 1. ${IFS} / $IFS field-separator smuggling: cat${IFS}.env
   s = s.replace(/\$\{IFS\}|\$IFS/g, " ");
@@ -198,9 +226,11 @@ const SINKS: { re: RegExp; label: string }[] = [
   { re: /\bnslookup\b|\bdig\b|\bhost\b|\bdrill\b/, label: "dns" },
   { re: /\bping\b[^\n]*\s-p\s/, label: "icmp-payload" },
   { re: /\bssh\b|\bscp\b|\bsftp\b|\brsync\b/, label: "ssh/scp" },
-  { re: /\bpython3?\b[^\n]*\b(urllib|requests|http\.client|socket)\b/, label: "python-http" },
-  { re: /\bnode\b[^\n]*\b(fetch|http|https|net\.)\b/, label: "node-http" },
-  { re: /\b(perl|ruby|php)\b[^\n]*\b(LWP|Net::|open-uri|net\/http|file_get_contents|curl_)\b/i, label: "interpreter-http" },
+  // [\s\S] rather than [^\n]: an interpreter heredoc puts the command on one line
+  // and the network call on the next, so a newline-bounded match never saw it.
+  { re: /\bpython3?\b[\s\S]*?\b(urllib|requests|http\.client|socket)\b/, label: "python-http" },
+  { re: /\bnode\b[\s\S]*?\b(fetch|http|https|net\.)\b/, label: "node-http" },
+  { re: /\b(perl|ruby|php)\b[\s\S]*?\b(LWP|Net::|open-uri|net\/http|file_get_contents|curl_)\b/i, label: "interpreter-http" },
   { re: /\bgit\s+push\b/, label: "git-push" },
   { re: /\bmail\b|\bsendmail\b|\bmutt\b/, label: "mail" },
   // Egress channels that are not obviously "the network".
@@ -222,8 +252,13 @@ function findSink(command: string): string | undefined {
 // Paths that count as "outside the project" — staging a secret there is a leak even
 // with no network verb (a later step, or the attacker, picks it up). Web-served
 // roots are the worst case: staging there publishes the secret immediately.
+// NOTE: bare `~/` used to be in this list and it was a disaster in real use.
+// `cd ~/myproject && ...` prefixes a huge share of real commands, so every one of
+// them looked like "staged a secret to an external path" the moment the command
+// text mentioned .env for any reason. Your home directory is not an exfiltration
+// destination; world-readable and shared locations are.
 const EXTERNAL_PATH =
-  /(^|\s|>)(\/tmp\/|\/var\/tmp\/|\/private\/tmp\/|\/var\/www\/|\/usr\/share\/nginx\/|\/srv\/http\/|\/public\/|~\/(?!\.config)|\/Users\/[^/]+\/(?:Public|Downloads)\/)/;
+  /(^|\s|>)(\/tmp\/|\/var\/tmp\/|\/private\/tmp\/|\/var\/www\/|\/usr\/share\/nginx\/|\/srv\/http\/|\/public\/|~\/(?:Public|Downloads|Dropbox|Desktop)\/|\/Users\/[^/]+\/(?:Public|Downloads|Dropbox|Desktop)\/)/;
 
 // ---------------------------------------------------------------------------
 
